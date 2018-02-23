@@ -30,6 +30,10 @@ from __future__ import print_function
 import os
 import numpy as np
 import facenet
+import sys
+
+reload(sys)
+sys.setdefaultencoding("utf8")
 
 def evaluate(embeddings, actual_issame, nrof_folds=10):
     # Calculate evaluation metrics

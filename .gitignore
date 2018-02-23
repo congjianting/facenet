@@ -92,3 +92,8 @@ ENV/
 
 # PyCharm project setting
 .idea
+
+data/
+checkpoints/
+logs/
+models/

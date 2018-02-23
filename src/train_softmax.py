@@ -43,6 +43,9 @@ from tensorflow.python.ops import data_flow_ops
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 
+reload(sys)
+sys.setdefaultencoding("utf8")
+
 def main(args):
   
     network = importlib.import_module(args.model_def)
@@ -185,9 +188,13 @@ def main(args):
         # Build a Graph that trains the model with one batch of examples and updates the model parameters
         train_op = facenet.train(total_loss, global_step, args.optimizer, 
             learning_rate, args.moving_average_decay, tf.global_variables(), args.log_histograms)
-        
+
+        # edit by cjt@20180223
         # Create a saver
-        saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3)
+        # saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
+        all_vars       = tf.trainable_variables()
+        var_to_restore = [v for v in all_vars if not v.name.startswith('Logits')]
+        saver          = tf.train.Saver(var_to_restore, max_to_keep=3)
 
         # Build the summary operation based on the TF collection of Summaries.
         summary_op = tf.summary.merge_all()

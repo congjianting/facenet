@@ -28,6 +28,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import sys
 from subprocess import Popen, PIPE
 import tensorflow as tf
 from tensorflow.python.framework import ops
@@ -40,6 +41,9 @@ import random
 import re
 from tensorflow.python.platform import gfile
 from six import iteritems
+
+reload(sys)
+sys.setdefaultencoding("utf8")
 
 def triplet_loss(anchor, positive, negative, alpha):
     """Calculate the triplet loss according to the FaceNet paper
