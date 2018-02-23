@@ -345,8 +345,19 @@ def get_dataset(path, has_class_directories=True):
 def get_image_paths(facedir):
     image_paths = []
     if os.path.isdir(facedir):
+
         images = os.listdir(facedir)
-        image_paths = [os.path.join(facedir,img) for img in images]
+        # image_paths = [os.path.join(facedir,img) for img in images]
+        # edit by cjt
+        for img in images:
+
+            curfilesize = os.path.getsize(os.path.join(facedir,img))
+            if curfilesize == 0:
+                continue
+
+            if ".jpg" in img:
+                image_paths.append(os.path.join(facedir,img))
+
     return image_paths
   
 def split_dataset(dataset, split_ratio, mode):

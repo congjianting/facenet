@@ -126,7 +126,12 @@ def main(args):
             images = []
             for filename in tf.unstack(filenames):
                 file_contents = tf.read_file(filename)
-                image = tf.image.decode_image(file_contents, channels=3)
+
+                #image = tf.image.decode_image(file_contents, channels=3)
+
+                image_tmp = tf.image.decode_jpeg(file_contents)
+                image     = tf.image.resize_images(image_tmp, (256, 256))
+
                 if args.random_rotate:
                     image = tf.py_func(facenet.random_rotate_image, [image], tf.uint8)
                 if args.random_crop:
@@ -194,7 +199,7 @@ def main(args):
         # saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
         all_vars       = tf.trainable_variables()
         var_to_restore = [v for v in all_vars if not v.name.startswith('Logits')]
-        saver          = tf.train.Saver(var_to_restore, max_to_keep=3)
+        saver          = tf.train.Saver(var_to_restore)
 
         # Build the summary operation based on the TF collection of Summaries.
         summary_op = tf.summary.merge_all()
@@ -278,7 +283,12 @@ def train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_o
     index_epoch = sess.run(index_dequeue_op)
     label_epoch = np.array(label_list)[index_epoch]
     image_epoch = np.array(image_list)[index_epoch]
-    
+
+    # print epoch image lists
+    with open("list.txt", "w") as fp:
+        for one_path in image_epoch.tolist():
+            fp.write(one_path+"\n")
+
     # Enqueue one epoch of image paths and labels
     labels_array = np.expand_dims(np.array(label_epoch),1)
     image_paths_array = np.expand_dims(np.array(image_epoch),1)
