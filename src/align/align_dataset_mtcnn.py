@@ -25,6 +25,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os.path as osp
+import sys
+
+def add_path(path):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+this_dir = osp.dirname(__file__)
+
+# Add pathes to PYTHONPATH
+add_path(this_dir)
+add_path(osp.join(this_dir, ".."))
+
 from scipy import misc
 import sys
 import os
@@ -35,6 +48,9 @@ import facenet
 import align.detect_face
 import random
 from time import sleep
+
+reload(sys)
+sys.setdefaultencoding("utf8")
 
 def main(args):
     sleep(random.random())

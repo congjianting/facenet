@@ -328,9 +328,9 @@ class ImageClass():
         return len(self.image_paths)
   
 def get_dataset(path, has_class_directories=True):
-    dataset = []
+    dataset  = []
     path_exp = os.path.expanduser(path)
-    classes = [path for path in os.listdir(path_exp) \
+    classes  = [path for path in os.listdir(path_exp) \
                     if os.path.isdir(os.path.join(path_exp, path))]
     classes.sort()
     nrof_classes = len(classes)

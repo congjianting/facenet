@@ -171,6 +171,9 @@ def main(args):
 
         embeddings = tf.nn.l2_normalize(prelogits, 1, 1e-10, name='embeddings')
 
+        # add softmax node add by cjt@20180224
+        predicts   = tf.nn.softmax(logits, name='predicts')
+
         # Add center loss
         if args.center_loss_factor>0.0:
             prelogits_center_loss, _ = facenet.center_loss(prelogits, label_batch, args.center_loss_alfa, nrof_classes)
@@ -196,7 +199,7 @@ def main(args):
 
         # edit by cjt@20180223
         # Create a saver
-        # saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
+        saver_all      = tf.train.Saver(tf.trainable_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
         all_vars       = tf.trainable_variables()
         var_to_restore = [v for v in all_vars if not v.name.startswith('Logits')]
         saver          = tf.train.Saver(var_to_restore)
@@ -231,7 +234,7 @@ def main(args):
                     total_loss, train_op, summary_op, summary_writer, regularization_losses, args.learning_rate_schedule_file)
 
                 # Save variables and the metagraph if it doesn't exist already
-                save_variables_and_metagraph(sess, saver, summary_writer, model_dir, subdir, step)
+                save_variables_and_metagraph(sess, saver_all, summary_writer, model_dir, subdir, step)
 
                 # Evaluate on LFW
                 if args.lfw_dir:
