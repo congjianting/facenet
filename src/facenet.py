@@ -333,6 +333,12 @@ def get_dataset(path, has_class_directories=True):
     classes  = [path for path in os.listdir(path_exp) \
                     if os.path.isdir(os.path.join(path_exp, path))]
     classes.sort()
+
+    # print class lists
+    with open("label.txt", "w") as fp:
+        for one_class in classes:
+            fp.write(one_class+"\n")
+
     nrof_classes = len(classes)
     for i in range(nrof_classes):
         class_name = classes[i]

@@ -1,27 +1,19 @@
-#!/usr/bin/env python
-
-# --------------------------------------------------------
-# Tensorflow slim cnn predict
-# --------------------------------------------------------
-#
-# supported nets include:
-# 'MobilenetV1'
-# 'InceptionV3'
-# 'resnet_v1_50'
-
-"""
-See README.md for installation instructions before running.
+#-*- coding: UTF-8 -*-
+"""See pb predict function
 """
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-# add nets and preprocessing method codes in slim package
+import sys
 import tensorflow as tf
 import cv2
 import time
 import os
 import numpy as np
+
+reload(sys)
+sys.setdefaultencoding("utf8")
 
 # sort top-5 for object prob
 def process_top5_inds_prob( prob ):
@@ -39,29 +31,30 @@ def process_top5_inds_prob( prob ):
 # define input node name mapping
 input_nodename_map = {
                       'resnet_v1_50':        'Placeholder:0',
-                      'inception_resnet_v1': 'input',
+                      'inception_resnet_v1': 'input:0',
                      }
 
 # define fea node name mapping
 fea_nodename_map = {
                     'resnet_v1_50':        'resnet_v1_50/pool5:0',
-                    'inception_resnet_v1': 'embeddings',
+                    'inception_resnet_v1': 'embeddings:0',
                    }
 
 # define logits node name mapping
 logit_nodename_map = {
                       'resnet_v1_50':        'Softmax:0',
-                      'inception_resnet_v1': 'predicts',
+                      'inception_resnet_v1': 'predicts:0',
                      }
 
 class ObjectClassifier_pb:
 
     # ini method
-    def __init__(self, net_name, pb_model_path):
+    def __init__(self, net_name, pb_model_path, phase_train_switch=False):
 
-        self.model_path   = pb_model_path
-        self.net_name     = net_name
-        self._predictions = {}
+        self.model_path          = pb_model_path
+        self.net_name            = net_name
+        self.phase_train_switch  = phase_train_switch
+        self._predictions        = {}
 
         # load network
         with tf.gfile.FastGFile(self.model_path, 'rb') as f:
@@ -72,6 +65,9 @@ class ObjectClassifier_pb:
                 self._input_images = graph.get_tensor_by_name(input_nodename_map[self.net_name])  # add input node
                 self._output_fea   = graph.get_tensor_by_name(fea_nodename_map[self.net_name])    # add fea node
                 self._output_cls   = graph.get_tensor_by_name(logit_nodename_map[self.net_name])  # add softmax node
+                if self.phase_train_switch:
+                    self._phase_train = graph.get_tensor_by_name("phase_train:0")
+                self._graph           = graph
 
             # set config
             tfconfig = tf.ConfigProto(allow_soft_placement=True)
@@ -87,9 +83,18 @@ class ObjectClassifier_pb:
             print("object_classify function input image not found")
             return []
 
+        # read image
+        h,w,c    = image.shape
+        image_4d = np.reshape(image, [1, h, w, c])
+
+        # make feedict
+        feed_dict = {self._input_images: image_4d}
+        if self.phase_train_switch:
+            feed_dict = {self._input_images: image_4d, self._phase_train: False}
+
         # predict object prob
         self._predictions["cls_prob"], self._predictions["cls_fea"] = self.sess.run([self._output_cls, self._output_fea],
-                                                                                    feed_dict={self._input_images: image})
+                                                                                    feed_dict=feed_dict)
 
         # sort prob and index
         top_5_inds, top_5_prob = process_top5_inds_prob(self._predictions["cls_prob"])
@@ -167,21 +172,24 @@ class ObjectClassifier_multi_pb:
 if __name__ == '__main__':
 
     # test resnet50v1 class
-    pb_file_path = '../../assets/classify/loss/headlight/scar/00/car_light_cls4_10131.pb'
-    image_path = '../example/0a17d30bb3dc11e7bb042cd05a7e66ealabel2017102715115500714.jpg'
+    pb_file_path = './20180224-151915_9000.pb'
+    image_path   = '../data/200种车款训练样本集/比亚迪-秦-A款/20150522065952986_蓝沪DZ1206.jpg'
 
-    dir_classifier0 = ObjectClassifier_pb('resnet_v1_50', pb_file_path)
-    dir_classifier1 = ObjectClassifier_pb('resnet_v1_50', pb_file_path)
+    classifier0 = ObjectClassifier_pb('inception_resnet_v1', pb_file_path, phase_train_switch=True)
+    classifier1 = ObjectClassifier_pb('inception_resnet_v1', pb_file_path, phase_train_switch=True)
 
     # read one image
     im = cv2.imread(image_path)
     # BGR->RGB
     im = np.array(im)[:, :, ::-1]
 
+    # resize to 224*224
+    im_re = cv2.resize(im, (224, 224), interpolation=cv2.INTER_CUBIC)
+
     start_time = time.time()
     # classify object
-    cls0, prob0 = dir_classifier0.object_classify(im)
-    cls1, prob1 = dir_classifier1.object_classify(im)
+    cls0, prob0, _, _ = classifier0.object_classify(im_re)
+    cls1, prob1, _, _ = classifier1.object_classify(im_re)
     end_time = time.time()
 
     print('cls0', cls0, 'prob0', prob0)

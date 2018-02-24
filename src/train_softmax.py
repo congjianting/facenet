@@ -289,8 +289,9 @@ def train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_o
 
     # print epoch image lists
     with open("list.txt", "w") as fp:
-        for one_path in image_epoch.tolist():
-            fp.write(one_path+"\n")
+        for one_path, one_label in zip(image_epoch.tolist(), label_epoch.tolist()):
+            line = "%s %d\n" % (one_path, one_label)
+            fp.write(line)
 
     # Enqueue one epoch of image paths and labels
     labels_array = np.expand_dims(np.array(label_epoch),1)
