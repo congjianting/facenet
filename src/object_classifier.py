@@ -112,64 +112,6 @@ if __name__ == '__main__':
 
     print(tf.__version__)
 
-    # # part1
-    # # test resnet50v1 class
-    #
-    # # input parameters
-    # # check point
-    # checkpoints_dir   = '/Users/congjt/PycharmProjects/tfslim_predict/car_dirs_class8_model/resnet50/model.ckpt-120000'
-    # # class_num
-    # class_num_support = 8
-    #
-    # # input one image for test
-    # image_path        = '../example/189e2b1473a111e79f66784f43a08a3cusrcol2017072822290102536.jpg'
-    #
-    # # create object-classifier instance
-    # dir_classifier = ObjectClassifier('resnet_v1_50', checkpoints_dir, class_num_support)
-    #
-    # # read one image
-    # im = cv2.imread(image_path)
-    # # BGR->RGB
-    # im = np.array(im)[:, :, ::-1]
-    #
-    # start_time = time.time()
-    # # classify object
-    # cls, prob = dir_classifier.object_classify(im)
-    # end_time = time.time()
-    #
-    # # print result
-    # print("resnet50v1 cls = %d, prob = %f" % (cls, prob))
-    # print("resnet50v1 cost time: %f" % (end_time - start_time))
-    #
-    # # part2
-    # # test mobilenet class
-    #
-    # # input parameters
-    # # check point
-    # checkpoints_dir   = '/Users/congjt/PycharmProjects/tfslim_predict/claim_class4_model/claim_V3/mobilenetv1/model.ckpt-60000'
-    # # class_num
-    # class_num_support = 4
-    #
-    # # input one image for test
-    # image_path        = '../example/usrvinefc45a147c2011e7be94784f43a08a3c.jpg'
-    #
-    # # create object-classifier instance
-    # claim_classifier = ObjectClassifier('MobilenetV1', checkpoints_dir, class_num_support)
-    #
-    # # read one image
-    # im = cv2.imread(image_path)
-    # # BGR->RGB
-    # im = np.array(im)[:, :, ::-1]
-    #
-    # start_time = time.time()
-    # # classify object
-    # cls, prob = claim_classifier.object_classify(im)
-    # end_time = time.time()
-    #
-    # # print result
-    # print("MobilenetV1 cls = %d, prob = %f" % (cls, prob))
-    # print("MobilenetV1 cost time: %f" % (end_time - start_time))
-    #
     # # part3
     # test inceptionv1 class
 
@@ -180,7 +122,7 @@ if __name__ == '__main__':
     class_num_support = 241
 
     # input one image for test
-    image_path        = '../data/200种车款训练样本集/比亚迪-秦-A款/20150522065952986_蓝沪DZ1206.jpg'
+    image_path        = '../data/200种车款训练样本集/DS-DS 4-A款/1032_10007_蓝豫AG7G52_0000_1403-1891-0113-0025_0_3_0_0_0.jpg'
 
     # create object-classifier instance
     brand_classifier = ObjectClassifier('InceptionV1', checkpoints_dir, class_num_support)
@@ -199,8 +141,8 @@ if __name__ == '__main__':
     end_time = time.time()
 
     # print result
-    print("inceptionv3 cls = %d, prob = %f" % (cls, prob))
-    print("inceptionv3 cost time: %f"%(end_time-start_time))
+    print("inceptionv1 cls = %d, prob = %f" % (cls, prob))
+    print("inceptionv1 cost time: %f"%(end_time-start_time))
 
 
 
