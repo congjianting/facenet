@@ -212,7 +212,7 @@ def main(args):
 
         # edit by cjt@20180223
         # Create a saver
-        saver_all      = tf.train.Saver(tf.trainable_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
+        saver_all      = tf.train.Saver(tf.global_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
         all_vars       = tf.trainable_variables()
         var_to_restore = [v for v in all_vars if not v.name.startswith('Logits') and not v.name.startswith('Bottleneck')]
         saver          = tf.train.Saver(var_to_restore)

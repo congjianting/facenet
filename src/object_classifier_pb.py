@@ -31,7 +31,7 @@ def process_top5_inds_prob( prob ):
 # define input node name mapping
 input_nodename_map = {
                       'resnet_v1_50':        'Placeholder:0',
-                      'inception_resnet_v1': 'input:0',
+                      'inception_resnet_v1': 'Placeholder:0',
                      }
 
 # define fea node name mapping
@@ -170,53 +170,49 @@ class ObjectClassifier_multi_pb:
 
 # test code
 if __name__ == '__main__':
+    pb_file_path = '../pb/car_cls241_embeddings_50.pb'
+    image_path = '../data/200种车款训练样本集/比亚迪-秦-A款/20151015065951_沪FZ6993_蓝色_7.jpg'
+    with tf.Graph().as_default():
+        output_graph_def = tf.GraphDef()
 
-    # test resnet50v1 class
-    pb_file_path = './20180224-151915_9000.pb'
-    image_path   = '../data/200种车款训练样本集/比亚迪-秦-A款/20150522065952986_蓝沪DZ1206.jpg'
+        with open(pb_file_path, "rb") as f:
+            output_graph_def.ParseFromString(f.read())
+            # fix nodes
+            for node in output_graph_def.node:
+                if node.op == 'RefSwitch':
+                    node.op = 'Switch'
+                    for index in xrange(len(node.input)):
+                        if 'moving_' in node.input[index]:
+                            node.input[index] = node.input[index] + '/read'
+                elif node.op == 'AssignSub':
+                    node.op = 'Sub'
+                    if 'use_locking' in node.attr: del node.attr['use_locking']
 
-    classifier0 = ObjectClassifier_pb('inception_resnet_v1', pb_file_path, phase_train_switch=True)
-    classifier1 = ObjectClassifier_pb('inception_resnet_v1', pb_file_path, phase_train_switch=True)
+            _ = tf.import_graph_def(output_graph_def, name="")
 
-    # read one image
-    im = cv2.imread(image_path)
-    # BGR->RGB
-    im = np.array(im)[:, :, ::-1]
+        with tf.Session() as sess:
+            # read one image
+            im = cv2.imread(image_path)
+            # BGR->RGB
+            im = np.array(im)[:, :, ::-1]
 
-    # resize to 224*224
-    im_re = cv2.resize(im, (224, 224), interpolation=cv2.INTER_CUBIC)
+            # resize to 224*224
+            im_re = cv2.resize(im, (224, 224), interpolation=cv2.INTER_CUBIC)
 
-    start_time = time.time()
-    # classify object
-    cls0, prob0, _, _ = classifier0.object_classify(im_re)
-    cls1, prob1, _, _ = classifier1.object_classify(im_re)
-    end_time = time.time()
+            start_time = time.time()
+            # prediction_result, embeddings = sess.run(["predicts:0", "embeddings:0"],
+            #                                          feed_dict={"Placeholder:0":im_re, "Placeholder_1:0":False})
 
-    print('cls0', cls0, 'prob0', prob0)
-    print('cls1', cls1, 'prob1', prob1)
+            prediction_result, embeddings = sess.run(["predicts:0", "embeddings:0"],
+                                                     feed_dict={"Placeholder:0":im_re})
 
-    # # test resnet50v1_multi class
-    # pb_file_path = '../../assets/classify/loss/door/scar/00/car_cls4_door_6000.pb'
-    # image_path   = '../example/323f5762b81711e7b17c7c7a91bce494label2017102715122202340.jpg'
-    # # labels_info
-    # labels_support = [2,2,2,2]
-    # headlight_classifier0 = ObjectClassifier_multi_pb('resnet_v1_50_multi', pb_file_path, labels_support)
-    # headlight_classifier1 = ObjectClassifier_multi_pb('resnet_v1_50_multi', pb_file_path, labels_support)
-    #
-    # # read one image
-    # im = cv2.imread(image_path)
-    # # BGR->RGB
-    # im = np.array(im)[:, :, ::-1]
-    #
-    # start_time = time.time()
-    # # classify object
-    # cls0_list, prob0_list = headlight_classifier0.object_classify(im)
-    # cls1_list, prob1_list = headlight_classifier1.object_classify(im)
-    # end_time = time.time()
-    #
-    # print('cls0_list', cls0_list, 'prob0_list', prob0_list)
-    # print('cls1_list', cls1_list, 'prob1_list', prob1_list)
+            #print (prediction_result)
+            #print (embeddings)
 
+            # sort prob and index
+            top_5_inds, top_5_prob = process_top5_inds_prob(prediction_result)
+
+            print (top_5_inds, top_5_prob)
 
 
 
