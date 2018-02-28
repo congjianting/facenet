@@ -16,7 +16,9 @@ import numpy as np
 import tensorflow.contrib.slim as slim
 import importlib
 
-from nets import nets_factory
+from nets          import nets_factory
+from nets          import resnet_v1
+
 
 # sort top-5 for object prob
 def process_top5_inds_prob( prob ):
@@ -36,22 +38,58 @@ default_embedding_size = 128
 
 class ObjectClassifier:
 
+    # define resnet_v1_50 network
+    def create_architecture_resnet_v1_50(self):
+
+        # define input image placeholder
+        self._image = tf.placeholder(tf.uint8, shape=[None, None, 3])
+
+        # resize
+        self._imagere = tf.image.resize_images(self._image, (self._image_size, self._image_size))
+
+        # extend dim
+        processed_images  = tf.expand_dims(tf.image.per_image_standardization(self._imagere), 0)
+
+        network_fn = nets_factory.get_network_fn(
+                                                'resnet_v1_50',
+                                                num_classes=None,
+                                                weight_decay=0.00004,
+                                                is_training=False)
+
+        # Build the inference graph
+        logits_tmp, _ = network_fn(processed_images)
+
+        # create embeddings
+        prelogits = slim.fully_connected(logits_tmp, self._embeddings_size, activation_fn=None, scope='Bottleneck', reuse=False)
+
+        logits = slim.fully_connected(prelogits, self.num_classes, activation_fn=None,
+                                      weights_initializer=tf.truncated_normal_initializer(stddev=0.1),
+                                      weights_regularizer=slim.l2_regularizer(0.00001),
+                                      scope='Logits', reuse=False)
+
+        self._embeddings = tf.nn.l2_normalize(prelogits, 1, 1e-10, name='embeddings')
+
+        # add softmax node add by cjt@20180224
+        self._probabilities = tf.nn.softmax(logits, name='predicts')
+
     # define inceptionv1_resent network
     def create_architecture_inceptionv1(self):
 
         # define input image placeholder
-        self._image       = tf.placeholder(tf.uint8, shape=[self._image_size, self._image_size, 3])
+        self._image = tf.placeholder(tf.uint8, shape=[None, None, 3])
+
+        # resize
+        self._imagere = tf.image.resize_images(self._image, (self._image_size, self._image_size))
 
         # extend dim
-        processed_images  = tf.expand_dims(tf.image.per_image_standardization(self._image), 0)
-        self._phase_train = tf.placeholder(tf.bool)
+        processed_images  = tf.expand_dims(tf.image.per_image_standardization(self._imagere), 0)
 
         # create model
         network = importlib.import_module('models.inception_resnet_v1')
 
         # Build the inference graph
         prelogits, _ = network.inference(processed_images, 0.8,
-                                         phase_train=self._phase_train, bottleneck_layer_size=self._embeddings_size,
+                                         phase_train=False, bottleneck_layer_size=self._embeddings_size,
                                          weight_decay=0.00001)
 
         logits = slim.fully_connected(prelogits, self.num_classes, activation_fn=None,
@@ -64,27 +102,63 @@ class ObjectClassifier:
         # add softmax node add by cjt@20180224
         self._probabilities = tf.nn.softmax(logits, name='predicts')
 
-    # define resnet_v1_50 network
-    def create_architecture_resnet_v1_50(self):
+    # define resnet_v2_50 network
+    def create_architecture_resnet_v2_50(self):
 
         # define input image placeholder
-        self._image = tf.placeholder(tf.uint8, shape=[self._image_size, self._image_size, 3])
-        self._phase_train = None
+        self._image = tf.placeholder(tf.uint8, shape=[None, None, 3])
+
+        # resize
+        self._imagere = tf.image.resize_images(self._image, (self._image_size, self._image_size))
 
         # extend dim
-        processed_images  = tf.expand_dims(tf.image.per_image_standardization(self._image), 0)
+        processed_images  = tf.expand_dims(tf.image.per_image_standardization(self._imagere), 0)
 
         network_fn = nets_factory.get_network_fn(
-                                                "resnet_v1_50",
+                                                'resnet_v2_50',
                                                 num_classes=None,
-                                                weight_decay=0.00001,
-                                                is_training=False)     #  True or False
+                                                weight_decay=0.00004,
+                                                is_training=False)
 
         # Build the inference graph
-        logits, _ = network_fn(processed_images)
+        logits_tmp, _ = network_fn(processed_images)
 
         # create embeddings
-        prelogits = slim.fully_connected(logits, self._embeddings_size, activation_fn=None, scope='Bottleneck', reuse=False)
+        prelogits = slim.fully_connected(logits_tmp, self._embeddings_size, activation_fn=None, scope='Bottleneck', reuse=False)
+
+        logits = slim.fully_connected(prelogits, self.num_classes, activation_fn=None,
+                                      weights_initializer=tf.truncated_normal_initializer(stddev=0.1),
+                                      weights_regularizer=slim.l2_regularizer(0.00001),
+                                      scope='Logits', reuse=False)
+
+        self._embeddings = tf.nn.l2_normalize(prelogits, 1, 1e-10, name='embeddings')
+
+        # add softmax node add by cjt@20180224
+        self._probabilities = tf.nn.softmax(logits, name='predicts')
+
+    # define inception_v2 network
+    def create_architecture_inception_v2(self):
+
+        # define input image placeholder
+        self._image = tf.placeholder(tf.uint8, shape=[None, None, 3])
+
+        # resize
+        self._imagere = tf.image.resize_images(self._image, (self._image_size, self._image_size))
+
+        # extend dim
+        processed_images  = tf.expand_dims(tf.image.per_image_standardization(self._imagere), 0)
+
+        network_fn = nets_factory.get_network_fn(
+                                                'inception_v2',
+                                                num_classes=None,
+                                                weight_decay=0.00004,
+                                                is_training=False)
+
+        # Build the inference graph
+        logits_tmp, _ = network_fn(processed_images)
+
+        # create embeddings
+        prelogits = slim.fully_connected(logits_tmp, self._embeddings_size, activation_fn=None, scope='Bottleneck', reuse=False)
 
         logits = slim.fully_connected(prelogits, self.num_classes, activation_fn=None,
                                       weights_initializer=tf.truncated_normal_initializer(stddev=0.1),
@@ -100,6 +174,8 @@ class ObjectClassifier:
     networks_map = {
         'inception_resnet_v1': create_architecture_inceptionv1,
         'resnet_v1_50': create_architecture_resnet_v1_50,
+        'resnet_v2_50': create_architecture_resnet_v2_50,
+        'inception_v2': create_architecture_resnet_v2_50,
     }
 
     # ini method
@@ -135,7 +211,7 @@ class ObjectClassifier:
             self.networks_map[self.net_name](self)
 
             # load weights
-            saver = tf.train.Saver(tf.global_variables(), max_to_keep=3)
+            saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3)
             saver.restore(self.sess, self.model_path)
 
             # for op in tf.get_default_graph().get_operations():
@@ -153,10 +229,7 @@ class ObjectClassifier:
             return []
 
         # predict object prob
-        if self._phase_train is None:
-            self._predictions["cls_prob"] = self.sess.run(self._probabilities, feed_dict={self._image: image})
-        else:
-            self._predictions["cls_prob"] = self.sess.run(self._probabilities, feed_dict={self._image: image, self._phase_train: False})
+        self._predictions["cls_prob"] = self.sess.run(self._probabilities, feed_dict={self._image: image})
 
         # sort prob and index
         top_5_inds,top_5_prob = process_top5_inds_prob(self._predictions["cls_prob"])
@@ -170,12 +243,13 @@ if __name__ == '__main__':
 
     # input parameters
     # check point
-    checkpoints_dir   = '../models/brands/20180226-205225/model-20180226-205225.ckpt-100'
+    #checkpoints_dir   = '../models/brands/20180227-142155/model-20180227-142155.ckpt-10000'
+    checkpoints_dir = '../models/brands/20180228-104446/model-20180228-104446.ckpt-10000'
     # class_num
-    class_num_support = 241
+    class_num_support = 4
 
     # input one image for test
-    image_path        = '../data/200种车款训练样本集/比亚迪-秦-A款/20151015065951_沪FZ6993_蓝色_7.jpg'
+    image_path        = '../data/5种车款训练样本集/MG-MG3-A款/1015_10045_苏DGR981_0000_1385-1363-0087-0018_37_0_0_0.jpg'
 
     # create object-classifier instance
     brand_classifier = ObjectClassifier('resnet_v1_50', checkpoints_dir, class_num_support)
@@ -185,12 +259,9 @@ if __name__ == '__main__':
     # BGR->RGB
     im = np.array(im)[:, :, ::-1]
 
-    # resize to 224*224
-    im_re = cv2.resize(im, (224, 224), interpolation=cv2.INTER_CUBIC)
-
     start_time = time.time()
     # classify object
-    cls, prob = brand_classifier.object_classify(im_re)
+    cls, prob = brand_classifier.object_classify(im)
     end_time = time.time()
 
     # print result

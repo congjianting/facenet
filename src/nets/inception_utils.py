@@ -51,7 +51,9 @@ def inception_arg_scope(weight_decay=0.00004,
       # epsilon to prevent 0s in variance.
       'epsilon': batch_norm_epsilon,
       # collection containing update_ops.
-      'updates_collections': tf.GraphKeys.UPDATE_OPS,
+      'updates_collections': None,  # edit by cjt
+      # Moving averages ends up in the trainable variables collection
+      'variables_collections': [tf.GraphKeys.TRAINABLE_VARIABLES],
   }
   if use_batch_norm:
     normalizer_fn = slim.batch_norm

@@ -46,6 +46,8 @@ from tensorflow.python.ops import array_ops
 reload(sys)
 sys.setdefaultencoding("utf8")
 
+from tensorflow.python.ops import control_flow_ops
+
 # import slim nets add by cjt@20180225
 from nets import nets_factory
 
@@ -97,6 +99,12 @@ def main(args):
         # Get a list of image paths and their labels
         image_list, label_list = facenet.get_image_paths_and_labels(train_set)
         assert len(image_list)>0, 'The dataset should not be empty'
+
+        # print epoch image lists
+        with open("alllists.txt", "w") as fp:
+            for one_path, one_label in zip(image_list, label_list):
+                line = "%s %d\n" % (one_path, one_label)
+                fp.write(line)
         
         # Create a queue that produces indices into the image_list and label_list 
         labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
@@ -122,7 +130,7 @@ def main(args):
                                     shared_name=None, name=None)
         enqueue_op = input_queue.enqueue_many([image_paths_placeholder, labels_placeholder], name='enqueue_op')
         
-        nrof_preprocess_threads = 4
+        nrof_preprocess_threads = 1
         images_and_labels = []
         for _ in range(nrof_preprocess_threads):
             filenames, label = input_queue.dequeue()
@@ -132,8 +140,8 @@ def main(args):
 
                 #image = tf.image.decode_image(file_contents, channels=3)
 
-                image_tmp = tf.image.decode_jpeg(file_contents)
-                image     = tf.image.resize_images(image_tmp, (256, 256))
+                image_tmp = tf.image.decode_jpeg(file_contents, channels=3)
+                image     = tf.image.resize_images(image_tmp, (args.image_padsize, args.image_padsize))
 
                 if args.random_rotate:
                     image = tf.py_func(facenet.random_rotate_image, [image], tf.uint8)
@@ -143,7 +151,7 @@ def main(args):
                     image = tf.image.resize_image_with_crop_or_pad(image, args.image_size, args.image_size)
                 if args.random_flip:
                     image = tf.image.random_flip_left_right(image)
-    
+
                 #pylint: disable=no-member
                 image.set_shape((args.image_size, args.image_size, 3))
                 images.append(tf.image.per_image_standardization(image))
@@ -168,17 +176,19 @@ def main(args):
                                                 args.model_def,
                                                 num_classes=None,
                                                 weight_decay=args.weight_decay,
-                                                is_training=phase_train_placeholder) #  True or False
-        
+                                                is_training=True) #  True or False
+
         # Build the inference graph
-        logits, _ = network_fn(image_batch)
+        logits_tmp, _ = network_fn(image_batch)
+
+        dropout_net   = slim.dropout(logits_tmp, args.keep_probability, is_training=True, scope = 'Dropout')
 
         # create embeddings
-        prelogits = slim.fully_connected(logits, args.embedding_size, activation_fn=None,
+        prelogits = slim.fully_connected(dropout_net, args.embedding_size, activation_fn=None,
                                    scope='Bottleneck', reuse=False)
 
-        logits = slim.fully_connected(prelogits, len(train_set), activation_fn=None, 
-                weights_initializer=tf.truncated_normal_initializer(stddev=0.1), 
+        logits = slim.fully_connected(prelogits, len(train_set), activation_fn=None,
+                weights_initializer=tf.truncated_normal_initializer(stddev=0.1),
                 weights_regularizer=slim.l2_regularizer(args.weight_decay),
                 scope='Logits', reuse=False)
 
@@ -200,21 +210,25 @@ def main(args):
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=label_batch, logits=logits, name='cross_entropy_per_example')
         cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
+
         tf.add_to_collection('losses', cross_entropy_mean)
-        
+
         # Calculate the total losses
         regularization_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         total_loss = tf.add_n([cross_entropy_mean] + regularization_losses, name='total_loss')
 
         # Build a Graph that trains the model with one batch of examples and updates the model parameters
-        train_op = facenet.train(total_loss, global_step, args.optimizer, 
+        train_op = facenet.train(total_loss, global_step, args.optimizer,
             learning_rate, args.moving_average_decay, tf.global_variables(), args.log_histograms)
+
+        # remove logits from checkpoints
+        checkpoints_logits = "%s/logits" % args.model_def
 
         # edit by cjt@20180223
         # Create a saver
-        saver_all      = tf.train.Saver(tf.global_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
+        saver_all      = tf.train.Saver(tf.trainable_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
         all_vars       = tf.trainable_variables()
-        var_to_restore = [v for v in all_vars if not v.name.startswith('Logits') and not v.name.startswith('Bottleneck')]
+        var_to_restore = [v for v in all_vars if not v.name.startswith('Logits') and not v.name.startswith('Bottleneck') and not v.name.startswith(checkpoints_logits) ]
         saver          = tf.train.Saver(var_to_restore)
 
         # Build the summary operation based on the TF collection of Summaries.
@@ -241,18 +255,20 @@ def main(args):
             while epoch < args.max_nrof_epochs:
                 step = sess.run(global_step, feed_dict=None)
                 epoch = step // args.epoch_size
+
                 # Train for one epoch
                 train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_op, image_paths_placeholder, labels_placeholder,
-                    learning_rate_placeholder, phase_train_placeholder, batch_size_placeholder, global_step, 
-                    total_loss, train_op, summary_op, summary_writer, regularization_losses, args.learning_rate_schedule_file)
+                    learning_rate_placeholder, phase_train_placeholder, batch_size_placeholder, global_step,
+                    total_loss, train_op, summary_op, summary_writer, regularization_losses, args.learning_rate_schedule_file, predicts, logits_tmp)
 
                 # Save variables and the metagraph if it doesn't exist already
                 save_variables_and_metagraph(sess, saver_all, summary_writer, model_dir, subdir, step)
 
                 # Evaluate on LFW
                 if args.lfw_dir:
-                    evaluate(sess, enqueue_op, image_paths_placeholder, labels_placeholder, phase_train_placeholder, batch_size_placeholder, 
+                    evaluate(sess, enqueue_op, image_paths_placeholder, labels_placeholder, phase_train_placeholder, batch_size_placeholder,
                         embeddings, label_batch, lfw_paths, actual_issame, args.lfw_batch_size, args.lfw_nrof_folds, log_dir, step, summary_writer)
+
     return model_dir
   
 def find_threshold(var, percentile):
@@ -288,7 +304,7 @@ def filter_dataset(dataset, data_filename, percentile, min_nrof_images_per_class
   
 def train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_op, image_paths_placeholder, labels_placeholder, 
       learning_rate_placeholder, phase_train_placeholder, batch_size_placeholder, global_step, 
-      loss, train_op, summary_op, summary_writer, regularization_losses, learning_rate_schedule_file):
+      loss, train_op, summary_op, summary_writer, regularization_losses, learning_rate_schedule_file, predicts, logits_tmp):
     batch_number = 0
     
     if args.learning_rate>0.0:
@@ -297,6 +313,13 @@ def train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_o
         lr = facenet.get_learning_rate_from_file(learning_rate_schedule_file, epoch)
 
     index_epoch = sess.run(index_dequeue_op)
+
+    # for i in range(len(index_epoch)):
+    #     index_epoch[i] = 2642
+
+    # print index
+    #print(index_epoch)
+
     label_epoch = np.array(label_list)[index_epoch]
     image_epoch = np.array(image_list)[index_epoch]
 
@@ -315,14 +338,31 @@ def train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_o
     train_time = 0
     while batch_number < args.epoch_size:
         start_time = time.time()
-        feed_dict = {learning_rate_placeholder: lr, phase_train_placeholder:True, batch_size_placeholder:args.batch_size}
+        feed_dict = {learning_rate_placeholder: lr, batch_size_placeholder:args.batch_size}
         if (batch_number % 100 == 0):
-            err, _, step, reg_loss, summary_str = sess.run([loss, train_op, global_step, regularization_losses, summary_op], feed_dict=feed_dict)
+
+            err, _, step, reg_loss, summary_str, _predicts_, logits_tmp_ = sess.run([loss, train_op, global_step, regularization_losses, summary_op, predicts, logits_tmp], feed_dict=feed_dict)
             summary_writer.add_summary(summary_str, global_step=step)
+
+            #step, _predicts_ = sess.run([global_step, predicts], feed_dict=feed_dict)
+
+            # print predicts
+            #print(_predicts_)
+
         else:
-            err, _, step, reg_loss = sess.run([loss, train_op, global_step, regularization_losses], feed_dict=feed_dict)
+
+            err, _, step, reg_loss, _predicts_, logits_tmp_ = sess.run([loss, train_op, global_step, regularization_losses, predicts, logits_tmp], feed_dict=feed_dict)
+
+            #step, _predicts_ = sess.run([global_step, predicts], feed_dict=feed_dict)
+
+            # print predicts
+            #print(_predicts_)
+
+        # err = 0
+        # reg_loss = 0
+
         duration = time.time() - start_time
-        print('Epoch: [%d][%d/%d]\tTime %.3f\tLoss %2.3f\tRegLoss %2.3f' %
+        print('Epoch: [%d][%d/%d]\tTime %.3f\tLoss %2.3f\tRegLoss %2.6f' %
               (epoch, batch_number+1, args.epoch_size, duration, err, np.sum(reg_loss)))
         batch_number += 1
         train_time += duration
@@ -377,7 +417,7 @@ def save_variables_and_metagraph(sess, saver, summary_writer, model_dir, model_n
     print('Saving variables')
     start_time = time.time()
     checkpoint_path = os.path.join(model_dir, 'model-%s.ckpt' % model_name)
-    saver.save(sess, checkpoint_path, global_step=step, write_meta_graph=False)
+    saver.save(sess, checkpoint_path, global_step=step, write_meta_graph=True)
     save_time_variables = time.time() - start_time
     print('Variables saved in %.2f seconds' % save_time_variables)
     metagraph_filename = os.path.join(model_dir, 'model-%s.meta' % model_name)
@@ -393,6 +433,65 @@ def save_variables_and_metagraph(sess, saver, summary_writer, model_dir, model_n
     summary.value.add(tag='time/save_variables', simple_value=save_time_variables)
     summary.value.add(tag='time/save_metagraph', simple_value=save_time_metagraph)
     summary_writer.add_summary(summary, step)
+
+
+def train_forward(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_op, image_paths_placeholder,
+                  labels_placeholder,
+                  learning_rate_placeholder, phase_train_placeholder, batch_size_placeholder, global_step,
+                  learning_rate_schedule_file, predicts, logits_tmp):
+
+    batch_number = 0
+
+    if args.learning_rate > 0.0:
+        lr = args.learning_rate
+    else:
+        lr = facenet.get_learning_rate_from_file(learning_rate_schedule_file, epoch)
+
+    index_epoch = sess.run(index_dequeue_op)
+
+    label_epoch = np.array(label_list)[index_epoch]
+    image_epoch = np.array(image_list)[index_epoch]
+
+    # print epoch image lists
+    with open("list.txt", "w") as fp:
+        for one_path, one_label in zip(image_epoch.tolist(), label_epoch.tolist()):
+            line = "%s %d\n" % (one_path, one_label)
+            fp.write(line)
+
+    # Enqueue one epoch of image paths and labels
+    labels_array = np.expand_dims(np.array(label_epoch), 1)
+    image_paths_array = np.expand_dims(np.array(image_epoch), 1)
+    sess.run(enqueue_op, {image_paths_placeholder: image_paths_array, labels_placeholder: labels_array})
+
+    # Training loop
+    train_time = 0
+    while batch_number < args.epoch_size:
+        start_time = time.time()
+        feed_dict = {learning_rate_placeholder: lr, batch_size_placeholder: args.batch_size}
+        if (batch_number % 100 == 0):
+
+            step, _predicts_ = sess.run([global_step, predicts], feed_dict=feed_dict)
+
+            # print predicts
+            print(_predicts_)
+
+        else:
+
+            step, _predicts_ = sess.run([global_step, predicts], feed_dict=feed_dict)
+
+            # print predicts
+            print(_predicts_)
+
+        err      = 0
+        reg_loss = 0
+
+        duration = time.time() - start_time
+        print('Epoch: [%d][%d/%d]\tTime %.3f\tLoss %2.3f\tRegLoss %2.6f' %
+              (epoch, batch_number + 1, args.epoch_size, duration, err, np.sum(reg_loss)))
+        batch_number += 1
+        train_time += duration
+
+    return step
   
 
 def parse_arguments(argv):
@@ -416,7 +515,9 @@ def parse_arguments(argv):
     parser.add_argument('--batch_size', type=int,
         help='Number of images to process in a batch.', default=90)
     parser.add_argument('--image_size', type=int,
-        help='Image size (height, width) in pixels.', default=160)
+        help='Image size (height, width) in pixels.', default=224)
+    parser.add_argument('--image_padsize', type=int,
+        help='Image size (height, width) in pixels before crop.', default=256) # add by cjt
     parser.add_argument('--epoch_size', type=int,
         help='Number of batches per epoch.', default=1000)
     parser.add_argument('--embedding_size', type=int,

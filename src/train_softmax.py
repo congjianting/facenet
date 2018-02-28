@@ -231,7 +231,7 @@ def main(args):
                 # Train for one epoch
                 train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_op, image_paths_placeholder, labels_placeholder,
                     learning_rate_placeholder, phase_train_placeholder, batch_size_placeholder, global_step, 
-                    total_loss, train_op, summary_op, summary_writer, regularization_losses, args.learning_rate_schedule_file)
+                    total_loss, train_op, summary_op, summary_writer, regularization_losses, args.learning_rate_schedule_file, predicts)
 
                 # Save variables and the metagraph if it doesn't exist already
                 save_variables_and_metagraph(sess, saver_all, summary_writer, model_dir, subdir, step)
@@ -275,7 +275,7 @@ def filter_dataset(dataset, data_filename, percentile, min_nrof_images_per_class
   
 def train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_op, image_paths_placeholder, labels_placeholder, 
       learning_rate_placeholder, phase_train_placeholder, batch_size_placeholder, global_step, 
-      loss, train_op, summary_op, summary_writer, regularization_losses, learning_rate_schedule_file):
+      loss, train_op, summary_op, summary_writer, regularization_losses, learning_rate_schedule_file, predicts):
     batch_number = 0
     
     if args.learning_rate>0.0:
@@ -304,10 +304,14 @@ def train(args, sess, epoch, image_list, label_list, index_dequeue_op, enqueue_o
         start_time = time.time()
         feed_dict = {learning_rate_placeholder: lr, phase_train_placeholder:True, batch_size_placeholder:args.batch_size}
         if (batch_number % 100 == 0):
-            err, _, step, reg_loss, summary_str = sess.run([loss, train_op, global_step, regularization_losses, summary_op], feed_dict=feed_dict)
+            err, _, step, reg_loss, summary_str, _predicts_ = sess.run([loss, train_op, global_step, regularization_losses, summary_op, predicts], feed_dict=feed_dict)
             summary_writer.add_summary(summary_str, global_step=step)
         else:
-            err, _, step, reg_loss = sess.run([loss, train_op, global_step, regularization_losses], feed_dict=feed_dict)
+            err, _, step, reg_loss, _predicts_ = sess.run([loss, train_op, global_step, regularization_losses, predicts], feed_dict=feed_dict)
+
+        # print predicts
+        print(_predicts_)
+
         duration = time.time() - start_time
         print('Epoch: [%d][%d/%d]\tTime %.3f\tLoss %2.3f\tRegLoss %2.3f' %
               (epoch, batch_number+1, args.epoch_size, duration, err, np.sum(reg_loss)))

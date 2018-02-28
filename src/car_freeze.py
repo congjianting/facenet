@@ -39,9 +39,10 @@ def freeze_graph(model_folder):
         # resize to 224*224
         im_re = cv2.resize(im, (224, 224), interpolation=cv2.INTER_CUBIC)
 
-        #im=tf.expand_dims(im, 0)
+        im_re= np.reshape(im_re, [1,224,224,3])
+
         print "predictions : ", sess.run(["predicts:0", "embeddings:0"],
-                                         feed_dict={"Placeholder:0":im_re})
+                                         feed_dict={"input:0":im_re})
 
         # print "predictions : ", sess.run(["predicts:0", "embeddings:0"],
         #                                  feed_dict={"Placeholder:0": im_re, "Placeholder_1:0": False})

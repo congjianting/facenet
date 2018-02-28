@@ -27,7 +27,7 @@ trunc_normal = lambda stddev: tf.truncated_normal_initializer(0.0, stddev)
 
 
 def inception_v2_base(inputs,
-                      final_endpoint='Mixed_5c',
+                      final_endpoint='Mixed_4e',
                       min_depth=16,
                       depth_multiplier=1.0,
                       scope=None):
@@ -414,7 +414,7 @@ def inception_v2_base(inputs,
 
 
 def inception_v2(inputs,
-                 num_classes=1000,
+                 num_classes=None,
                  is_training=True,
                  dropout_keep_prob=0.8,
                  min_depth=16,
@@ -463,7 +463,7 @@ def inception_v2(inputs,
     raise ValueError('depth_multiplier is not greater than zero.')
 
   # Final pooling and prediction
-  with tf.variable_scope(scope, 'InceptionV2', [inputs, num_classes],
+  with tf.variable_scope(scope, 'InceptionV2', [inputs, None],
                          reuse=reuse) as scope:
     with slim.arg_scope([slim.batch_norm, slim.dropout],
                         is_training=is_training):
@@ -471,12 +471,12 @@ def inception_v2(inputs,
           inputs, scope=scope, min_depth=min_depth,
           depth_multiplier=depth_multiplier)
       with tf.variable_scope('Logits'):
-        kernel_size = _reduced_kernel_size_for_small_input(net, [7, 7])
+        kernel_size = _reduced_kernel_size_for_small_input(net, [14, 14]) # different feature map, adjust  by cjt
         net = slim.avg_pool2d(net, kernel_size, padding='VALID',
                               scope='AvgPool_1a_{}x{}'.format(*kernel_size))
         # 1 x 1 x 1024
-        net    = slim.dropout(net, keep_prob=dropout_keep_prob, scope='Dropout_1b')
-        logits = net
+        # remove some nets
+        logits = slim.flatten(net) # flatten (?,x) shape add by cjt
       end_points['Logits'] = logits
   return logits, end_points
 inception_v2.default_image_size = 224

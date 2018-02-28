@@ -171,7 +171,7 @@ class ObjectClassifier_multi_pb:
 # test code
 if __name__ == '__main__':
     pb_file_path = '../pb/car_cls241_embeddings_50.pb'
-    image_path = '../data/200种车款训练样本集/比亚迪-秦-A款/20151015065951_沪FZ6993_蓝色_7.jpg'
+    image_path = '../data/5种车款训练样本集/别克-凯越-A款/head_1024_13768_苏DQT862_0000_1023-1499-0096-0024_37_0_0_1.jpg'
     with tf.Graph().as_default():
         output_graph_def = tf.GraphDef()
 
