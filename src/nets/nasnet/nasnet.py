@@ -201,6 +201,11 @@ def nasnet_large_arg_scope(weight_decay=5e-5,
       'epsilon': batch_norm_epsilon,
       'scale': True,
       'fused': True,
+      # add by cjt
+      # force in-place updates of mean and variance estimates
+      'updates_collections': None,
+      # Moving averages ends up in the trainable variables collection
+      'variables_collections': [tf.GraphKeys.TRAINABLE_VARIABLES],
   }
   weights_regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
   weights_initializer = tf.contrib.layers.variance_scaling_initializer(
@@ -491,7 +496,7 @@ def _build_nasnet_base(images,
     if (hparams.use_aux_head and cell_num in aux_head_cell_idxes and
         num_classes and is_training):
       aux_net = tf.nn.relu(net)
-      _build_aux_head (aux_net, end_points, num_classes, hparams,
+      _build_aux_head(aux_net, end_points, num_classes, hparams,
                       scope='aux_{}'.format(cell_num))
     cell_outputs.append(net)
 
