@@ -205,11 +205,14 @@ def densenet_arg_scope(weight_decay=1e-4,
   with slim.arg_scope([slim.conv2d],
                        weights_regularizer=slim.l2_regularizer(weight_decay),
                        activation_fn=None,
-                       biases_initializer=None):
+                       biases_initializer=None,
+                       normalizer_params={}): # add by cjt
     with slim.arg_scope([slim.batch_norm],
                         scale=True,
                         decay=batch_norm_decay,
-                        epsilon=batch_norm_epsilon) as scope:
+                        epsilon=batch_norm_epsilon,
+                        updates_collections=None,    # add by cjt
+                        variables_collections=[ tf.GraphKeys.TRAINABLE_VARIABLES ]) as scope: # add by cjt
       return scope
 
 

@@ -105,8 +105,14 @@ def main(args):
             images = []
             for filename in tf.unstack(filenames):
                 file_contents = tf.read_file(filename)
-                image = tf.image.decode_image(file_contents, channels=3)
+
+                #image = tf.image.decode_image(file_contents, channels=3)
+
+                image_tmp = tf.image.decode_jpeg(file_contents, channels=3)
+                image = tf.image.resize_images(image_tmp, (args.image_padsize, args.image_padsize))
                 
+                if args.random_rotate:
+                    image = tf.py_func(facenet.random_rotate_image, [image], tf.uint8)
                 if args.random_crop:
                     image = tf.random_crop(image, [args.image_size, args.image_size, 3])
                 else:
@@ -150,8 +156,15 @@ def main(args):
         train_op = facenet.train(total_loss, global_step, args.optimizer, 
             learning_rate, args.moving_average_decay, tf.global_variables())
         
+        # remove logits from checkpoints
+        checkpoints_logits = "%s/logits" % args.model_def
+
+        # edit by cjt@20180223
         # Create a saver
-        saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3)
+        saver_all      = tf.train.Saver(tf.trainable_variables(), max_to_keep=3) # if we wanna change loading ckpt exclude logits
+        all_vars       = tf.trainable_variables()
+        var_to_restore = [v for v in all_vars if not v.name.startswith('Logits') and not v.name.startswith('Bottleneck') and not v.name.startswith(checkpoints_logits) ]
+        saver          = tf.train.Saver(var_to_restore)
 
         # Build the summary operation based on the TF collection of Summaries.
         summary_op = tf.summary.merge_all()
@@ -207,6 +220,7 @@ def train(args, sess, dataset, epoch, image_paths_placeholder, labels_placeholde
         lr = args.learning_rate
     else:
         lr = facenet.get_learning_rate_from_file(learning_rate_schedule_file, epoch)
+
     while batch_number < args.epoch_size:
         # Sample people randomly from the dataset
         image_paths, num_per_class = sample_people(dataset, args.people_per_batch, args.images_per_person)
@@ -217,6 +231,13 @@ def train(args, sess, dataset, epoch, image_paths_placeholder, labels_placeholde
         labels_array = np.reshape(np.arange(nrof_examples),(-1,3))
         image_paths_array = np.reshape(np.expand_dims(np.array(image_paths),1), (-1,3))
         sess.run(enqueue_op, {image_paths_placeholder: image_paths_array, labels_placeholder: labels_array})
+
+        # print epoch image lists
+        with open("list.txt", "w") as fp:
+            for one_path, one_label in zip(np.reshape(image_paths_array,-1).tolist(), np.reshape(labels_array,-1).tolist()):
+                line = "%s %d\n" % (one_path, one_label)
+                fp.write(line)
+
         emb_array = np.zeros((nrof_examples, embedding_size))
         nrof_batches = int(np.ceil(nrof_examples / args.batch_size))
         for i in range(nrof_batches):
@@ -241,6 +262,13 @@ def train(args, sess, dataset, epoch, image_paths_placeholder, labels_placeholde
         triplet_paths_array = np.reshape(np.expand_dims(np.array(triplet_paths),1), (-1,3))
         sess.run(enqueue_op, {image_paths_placeholder: triplet_paths_array, labels_placeholder: labels_array})
         nrof_examples = len(triplet_paths)
+
+        # print triplet image lists
+        with open("triplet_list.txt", "w") as fp:
+            for one_path, one_label in zip(np.reshape(triplet_paths_array,-1).tolist(), np.reshape(labels_array,-1).tolist()):
+                line = "%s %d\n" % (one_path, one_label)
+                fp.write(line)
+
         train_time = 0
         i = 0
         emb_array = np.zeros((nrof_examples, embedding_size))
@@ -435,7 +463,9 @@ def parse_arguments(argv):
     parser.add_argument('--batch_size', type=int,
         help='Number of images to process in a batch.', default=90)
     parser.add_argument('--image_size', type=int,
-        help='Image size (height, width) in pixels.', default=160)
+        help='Image size (height, width) in pixels.', default=224)
+    parser.add_argument('--image_padsize', type=int,
+        help='Image size (height, width) in pixels before crop.', default=256) # add by cjt
     parser.add_argument('--people_per_batch', type=int,
         help='Number of people per batch.', default=45)
     parser.add_argument('--images_per_person', type=int,
@@ -451,6 +481,8 @@ def parse_arguments(argv):
          'If the size of the images in the data directory is equal to image_size no cropping is performed', action='store_true')
     parser.add_argument('--random_flip', 
         help='Performs random horizontal flipping of training images.', action='store_true')
+    parser.add_argument('--random_rotate',
+        help='Performs random rotations of training images.', action='store_true')
     parser.add_argument('--keep_probability', type=float,
         help='Keep probability of dropout for the fully connected layer(s).', default=1.0)
     parser.add_argument('--weight_decay', type=float,
