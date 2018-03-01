@@ -21,7 +21,6 @@ reload(sys)
 sys.setdefaultencoding("utf8")
 
 from nets          import nets_factory
-from nets          import resnet_v1
 
 def _dir_list(path, allfile, ext):
 
@@ -302,7 +301,7 @@ class ObjectClassifier:
     }
 
     # ini method
-    def __init__(self, net_name, model_path, num_classes=1000):
+    def __init__(self, net_name, model_path, num_classes=1000, exclude_var=None):
 
         self.model_path       = model_path
         self.num_classes      = num_classes
@@ -334,14 +333,19 @@ class ObjectClassifier:
             self.networks_map[self.net_name](self)
 
             # load weights
-            saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3)
+            all_vars       = tf.trainable_variables()
+            var_to_restore = all_vars
+            if exclude_var is not None:
+                var_to_restore = [v for v in all_vars if not v.name.startswith(exclude_var)]
+
+            saver = tf.train.Saver(var_to_restore, max_to_keep=3)
             saver.restore(self.sess, self.model_path)
 
             # for op in tf.get_default_graph().get_operations():
             #     print(op.name)
-
-        saver = tf.train.Saver()
-        saver.save(self.sess, '../tmp/model.ckpt-50')
+        #
+        # saver = tf.train.Saver()
+        # saver.save(self.sess, '../tmp/model.ckpt-50')
 
     # define object classify method
     def object_classify(self, image):
@@ -352,12 +356,25 @@ class ObjectClassifier:
             return []
 
         # predict object prob
-        self._predictions["cls_prob"] = self.sess.run(self._probabilities, feed_dict={self._image: image})
+        self._predictions["cls_prob"], self._predictions["cls_fea"] = self.sess.run([self._probabilities, self._embeddings], feed_dict={self._image: image})
 
         # sort prob and index
         top_5_inds,top_5_prob = process_top5_inds_prob(self._predictions["cls_prob"])
 
-        return top_5_inds[0], top_5_prob[0]
+        return top_5_inds[0], top_5_prob[0], self._predictions["cls_fea"]
+
+    # define object feature extraction method
+    def object_feature(self, image):
+
+        # null
+        if image is None:
+            print("object_feature function input image not found")
+            return []
+
+        # predict object feature
+        self._predictions["cls_fea"] = self.sess.run([self._embeddings], feed_dict={self._image: image})
+
+        return self._predictions["cls_fea"]
 
 # test code
 if __name__ == '__main__':
@@ -399,7 +416,7 @@ if __name__ == '__main__':
 
         start_time = time.time()
         # classify object
-        cls, prob = classifier.object_classify(im)
+        cls, prob, _ = classifier.object_classify(im)
         end_time = time.time()
 
         # print result
@@ -438,7 +455,7 @@ if __name__ == '__main__':
                 im = np.array(im)[:, :, ::-1]
 
                 # 运行输入图像来计算各类别概率
-                cls, prob = classifier.object_classify(im)
+                cls, prob, _ = classifier.object_classify(im)
 
                 # 预测结果写入到result.txt中
                 # 提取出文件的相对路径
