@@ -341,11 +341,11 @@ class ObjectClassifier:
             saver = tf.train.Saver(var_to_restore, max_to_keep=3)
             saver.restore(self.sess, self.model_path)
 
-            # for op in tf.get_default_graph().get_operations():
-            #     print(op.name)
-        #
-        # saver = tf.train.Saver()
-        # saver.save(self.sess, '../tmp/model.ckpt-50')
+            for op in tf.get_default_graph().get_operations():
+                print(op.name)
+
+        saver = tf.train.Saver()
+        saver.save(self.sess, '../tmp/model.ckpt-50')
 
     # define object classify method
     def object_classify(self, image):
@@ -403,6 +403,7 @@ if __name__ == '__main__':
                     u"比亚迪-秦-A款": 3,
     }
 
+
     if _debug_batch_switch == False:
 
         # input parameters
@@ -431,7 +432,7 @@ if __name__ == '__main__':
         file_ex = u'.jpeg | .jpg'
 
         # 图像文件的根路径
-        input_image_rootdir = u'../data/4种车款训练样本集'
+        input_image_rootdir = u'../data/test'
 
         image_path_list = []
         # 遍历预测的图像根路径
@@ -442,6 +443,9 @@ if __name__ == '__main__':
         total_all   = 0
         trues       = {}
         precisons   = {}
+
+        total_error_confused = 0
+        confused_cred        = 0.95
 
         with open(os.path.join(input_image_rootdir, u"result.txt"), u"w+") as f:
 
@@ -505,10 +509,18 @@ if __name__ == '__main__':
                     if cls == true_label[label_chinese]:
                         total_right += 1
 
+                    # 预测结果错误,但是置信度高于阈值
+                    if cls != true_label[label_chinese] and prob > confused_cred:
+                        total_error_confused += 1
+
                 else:
 
                     if cls == int(label_chinese):
                         total_right += 1
+
+                    # 预测结果错误,但是置信度高于阈值
+                    if cls != int(label_chinese) and prob > confused_cred:
+                        total_error_confused += 1
 
                 total_all += 1
 
@@ -517,10 +529,11 @@ if __name__ == '__main__':
         for key, value in trues.items():
 
             # 当前类别的召回率指标
-            print("key: %s====>%f,\n" % (key, 1.0*precisons[key]/trues[key]))
+            print("key: %s====>%f, total===>%d, right===>%d\n" % (key, 1.0*precisons[key]/trues[key], trues[key], precisons[key]))
 
         # 打印平均识别率
-        print("average precison: %f,\n" % (1.0*total_right/total_all))
+        print("average precison: %f, diff: %f total====>%d, right=====>%d, confused=====>%d,\n" % (1.0*total_right/total_all, 1.0*total_error_confused/total_all,
+                                                                                                   total_all, total_right, total_error_confused))
 
 
 

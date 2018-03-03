@@ -216,7 +216,7 @@ def main(args):
                     args.embedding_size, anchor, positive, negative, triplet_loss)
 
                 # Save variables and the metagraph if it doesn't exist already
-                save_variables_and_metagraph(sess, saver, summary_writer, model_dir, subdir, step)
+                save_variables_and_metagraph(sess, saver_all, summary_writer, model_dir, subdir, step)
 
                 # Evaluate on LFW
                 if args.lfw_dir:
@@ -484,11 +484,11 @@ def parse_arguments(argv):
     parser.add_argument('--image_padsize', type=int,
         help='Image size (height, width) in pixels before crop.', default=256) # add by cjt
     parser.add_argument('--people_per_batch', type=int,
-        help='Number of people per batch.', default=45)
+        help='Number of people per batch.', default=5)
     parser.add_argument('--images_per_person', type=int,
-        help='Number of images per person.', default=40)
+        help='Number of images per person.', default=3)
     parser.add_argument('--epoch_size', type=int,
-        help='Number of batches per epoch.', default=1000)
+        help='Number of batches per epoch.', default=1)
     parser.add_argument('--alpha', type=float,
         help='Positive to negative triplet distance margin.', default=0.2)
     parser.add_argument('--embedding_size', type=int,
