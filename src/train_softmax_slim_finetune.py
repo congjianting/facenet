@@ -219,7 +219,7 @@ def main(args):
 
         # try to finetune some layers, only train logits by cjt
         glabal_vars     = tf.global_variables()
-        var_to_finetune = glabal_vars
+        var_to_finetune = [ v for v in glabal_vars if not v.name.startswith('Bottleneck') and not v.name.startswith(args.model_def) ]
 
         # Build a Graph that trains the model with one batch of examples and updates the model parameters
         train_op = facenet.train(total_loss, global_step, args.optimizer,
